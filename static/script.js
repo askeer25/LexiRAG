@@ -5,6 +5,7 @@ const API_BASE_URL = `${window.location.origin}/api`;
 const queryInput = document.getElementById('query-input');
 const searchBtn = document.getElementById('search-btn');
 const topkSelect = document.getElementById('topk-select');
+const providerSelect = document.getElementById('provider-select');
 const resultContainer = document.getElementById('result-container');
 const loadingIndicator = document.getElementById('loading-indicator');
 const answerContainer = document.getElementById('answer-container');
@@ -29,7 +30,76 @@ document.addEventListener('DOMContentLoaded', () => {
             handleSearch();
         }
     });
+    
+    // 绑定模型提供者选择事件
+    providerSelect.addEventListener('change', handleProviderChange);
+    
+    // 获取当前使用的模型提供者
+    getCurrentProvider();
 });
+
+// 获取当前使用的模型提供者
+async function getCurrentProvider() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/get_provider`);
+        const data = await response.json();
+        
+        if (response.ok && data.provider) {
+            providerSelect.value = data.provider;
+        }
+    } catch (error) {
+        console.error('获取模型提供者失败:', error);
+    }
+}
+
+// 处理模型提供者变更
+async function handleProviderChange() {
+    const provider = providerSelect.value;
+    const statusContainer = document.getElementById('provider-status-container');
+    
+    // 如果状态容器不存在，则创建
+    if (!statusContainer) {
+        const container = document.createElement('div');
+        container.id = 'provider-status-container';
+        container.className = 'provider-status-container';
+        providerSelect.parentNode.appendChild(container);
+    }
+    
+    const container = document.getElementById('provider-status-container');
+    container.innerHTML = '<div class="spinner small"></div><span>切换中...</span>';
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/set_provider`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ provider }),
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            container.className = 'provider-status-container status-success';
+            container.innerHTML = '<i class="fas fa-check-circle"></i><span>切换成功</span>';
+            
+            // 更新法律列表，因为不同提供者可能有不同的索引
+            fetchLawsList();
+            
+            // 3秒后隐藏状态信息
+            setTimeout(() => {
+                container.style.display = 'none';
+            }, 3000);
+        } else {
+            throw new Error(data.detail || '切换失败');
+        }
+    } catch (error) {
+        console.error('切换模型提供者失败:', error);
+        const container = document.getElementById('provider-status-container');
+        container.className = 'provider-status-container status-error';
+        container.innerHTML = `<i class="fas fa-times-circle"></i><span>切换失败: ${error.message}</span>`;
+    }
+}
 
 // 检查系统初始化状态
 async function checkInitStatus() {

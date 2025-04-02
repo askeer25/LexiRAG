@@ -1,0 +1,42 @@
+# 忽略环境配置文件
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+laws/  # 添加项目特定的虚拟环境文件夹
+
+# 忽略缓存
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+
+# 忽略特定文件夹
+lawsfiles/
+law_index/
+laws_index_openai/  # 添加向量索引文件夹
+laws_index_ollama/  # 添加向量索引文件夹
+
+# IDE相关
+.idea/
+.vscode/
+*.swp
+*.swo
+*~

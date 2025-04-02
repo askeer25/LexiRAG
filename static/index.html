@@ -3,15 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>中国法律智能助手</title>
+    <title>LexiRAG - 法律法规检索智能体</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>中国法律智能助手</h1>
-            <p class="subtitle">基于人工智能的法律条文检索与问答系统</p>
+            <h1>LexiRAG - 法律法规检索智能体</h1>
+            <p class="subtitle">基于人工智能的法律条文智能检索与交互系统</p>
         </header>
 
         <main>
@@ -29,6 +29,12 @@
                         <option value="5" selected>5条</option>
                         <option value="8">8条</option>
                         <option value="10">10条</option>
+                    </select>
+                    
+                    <label for="provider-select">模型来源：</label>
+                    <select id="provider-select">
+                        <option value="openai">OpenAI</option>
+                        <option value="ollama">Ollama (本地)</option>
                     </select>
                 </div>
             </div>
@@ -62,8 +68,11 @@
 
         <footer>
             <div class="footer-content">
-                <p>基于LlamaIndex和大语言模型技术构建的法律智能问答系统</p>
-                <p>© 2025 中国法律智能助手</p>
+                <p>LexiRAG: 基于LlamaIndex和大语言模型构建的智能法律条文检索交互系统</p>
+                <div class="author-info">
+                    <p>作者: 段诗阳 | <a href="https://github.com/askeer25" target="_blank"><i class="fab fa-github"></i> GitHub</a></p>
+                </div>
+                <p>© 2025 LexiRAG - 法律法规检索智能体</p>
             </div>
         </footer>
     </div>

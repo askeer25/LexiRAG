@@ -56,6 +56,9 @@ class InitStatusModel(BaseModel):
     processed_files: List[str]
     total_files: int
 
+class ProviderModel(BaseModel):
+    provider: str
+
 @app.on_event("startup")
 async def startup_event():
     """应用启动时初始化RAG系统"""
@@ -64,13 +67,15 @@ async def startup_event():
     # 使用环境变量或默认值
     llm_model_name = os.getenv("LLM_MODEL", "gpt-3.5-turbo")
     embedding_model_name = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
+    provider = os.getenv("MODEL_PROVIDER", "openai")  # 默认使用OpenAI
     
     # 创建法律RAG系统
     law_rag = LawRAG(
         laws_path="lawsfiles",  # 法律文件目录
-        index_path="law_index",  # 向量索引目录
+        index_path=f"laws_index_{provider}",  # 向量索引目录
         llm_model_name=llm_model_name,
         embedding_model_name=embedding_model_name,
+        provider=provider,
     )
     
     # 创建查询服务
@@ -178,9 +183,55 @@ async def get_laws():
         logger.error(f"获取法律列表时出错: {str(e)}")
         raise HTTPException(status_code=500, detail=f"获取法律列表时出错: {str(e)}")
 
+@app.post("/api/set_provider")
+async def set_provider(data: ProviderModel):
+    """更改模型提供者（OpenAI或Ollama）"""
+    global law_rag, query_service
+    
+    if data.provider not in ["openai", "ollama"]:
+        raise HTTPException(status_code=400, detail="提供者必须是'openai'或'ollama'")
+    
+    try:
+        # 使用环境变量或默认值
+        llm_model_name = os.getenv("LLM_MODEL", "gpt-3.5-turbo")
+        embedding_model_name = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
+        
+        # 为 Ollama 使用不同的默认模型
+        if data.provider == "ollama":
+            llm_model_name = os.getenv("OLLAMA_LLM_MODEL", "qwen2.5:3b")
+            embedding_model_name = os.getenv("OLLAMA_EMBEDDING_MODEL", "bge-m3")
+        
+        # 创建法律RAG系统
+        law_rag = LawRAG(
+            laws_path="lawsfiles",  # 法律文件目录
+            index_path=f"laws_index_{data.provider}",  # 向量索引目录
+            llm_model_name=llm_model_name,
+            embedding_model_name=embedding_model_name,
+            provider=data.provider,
+        )
+        
+        # 创建查询服务
+        query_service = QueryService(law_rag)
+        
+        # 更新环境变量
+        os.environ["MODEL_PROVIDER"] = data.provider
+        
+        logger.info(f"切换到模型提供者: {data.provider}")
+        
+        return {"status": "success", "provider": data.provider}
+    except Exception as e:
+        logger.error(f"切换模型提供者时出错: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"切换模型提供者时出错: {str(e)}")
+
+@app.get("/api/get_provider")
+async def get_provider():
+    """获取当前使用的模型提供者"""
+    provider = os.getenv("MODEL_PROVIDER", "openai")
+    return {"provider": provider}
+
 # 添加静态文件服务
 app.mount("/", StaticFiles(directory="static", html=True), name="static")
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8080)
+    uvicorn.run(app, host="0.0.0.0", port=9000)

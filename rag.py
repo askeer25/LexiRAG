@@ -1,16 +1,19 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 import os
 import logging
 import re
 from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.llms.openai import OpenAI
+from llama_index.llms.ollama import Ollama
+from llama_index.embeddings.ollama import OllamaEmbedding
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.readers.file import PyMuPDFReader
 from llama_index.core.schema import TextNode, Document, NodeWithScore
 from llama_index.core.text_splitter import TokenTextSplitter
 from llama_index.core.vector_stores import VectorStoreQuery
-from llama_index.core.retrievers import BaseRetriever
 from llama_index.core import PromptTemplate
-from typing import Optional, Any, List, Set, Tuple, Dict
+from typing import Any, List, Set, Tuple, Dict
 from pymupdf import EmptyFileError
 import chromadb
 
@@ -172,14 +175,10 @@ class DocumentProcessor:
 class EmbeddingService:
     """负责文本向量化"""
     
-    def __init__(self, model_name: str, api_key: Optional[str] = None, 
-                api_base: Optional[str] = None, dimensions: int = 512):
-        self.model = OpenAIEmbedding(
-            model=model_name,
-            dimensions=dimensions,
-            api_key=api_key,
-            api_base=api_base,
-        )
+    def __init__(self, embedding_model):
+        
+        self.model = embedding_model
+
     
     def embed_nodes(self, nodes: List[TextNode], batch_size: int = 50) -> List[TextNode]:
         """对节点进行向量化"""
@@ -225,7 +224,7 @@ class VectorStore:
         """加载已处理过的文件列表"""
         processed_file_path = os.path.join(self.index_path, "processed_files.txt")
         if os.path.exists(processed_file_path):
-            with open(processed_file_path, "r") as f:
+            with open(processed_file_path, "r", encoding="utf-8") as f:
                 files = [line.strip() for line in f.readlines()]
             return set(files)
         else:
@@ -234,7 +233,7 @@ class VectorStore:
     def save_processed_files(self):
         """保存已处理过的文件列表"""
         processed_file_path = os.path.join(self.index_path, "processed_files.txt")
-        with open(processed_file_path, "w") as f:
+        with open(processed_file_path, "w", encoding="utf-8") as f:
             for file in self.processed_files:
                 f.write(file + "\n")
     
@@ -303,15 +302,22 @@ class HierarchicalRetriever:
                     chapter_query = f"在{law_name}中，哪一章节涉及 {query_str}"
                     logger.info(f"章节级检索，查询: {chapter_query}")
                     chapter_embedding = self._embed_model.get_query_embedding(chapter_query)
+                    
                     chapter_vector_query = VectorStoreQuery(
                         query_embedding=chapter_embedding,
                         similarity_top_k=3,  # 限制每部法律返回的章节数量
                         mode="default",
-                        # 过滤条件：只检索特定法律
-                        filter=lambda node: node.metadata.get("law_name") == law_name,
                     )
                     chapter_results = self._vector_store.query(chapter_vector_query)
-                    chapter_nodes.extend(chapter_results.nodes)
+                    
+                    # 手动过滤结果
+                    filtered_nodes = [
+                        node for node in chapter_results.nodes 
+                        if node.metadata.get("law_name") == law_name
+                    ]
+                    
+                    # 修复：将过滤后的节点添加到chapter_nodes
+                    chapter_nodes.extend(filtered_nodes)
             
             # 提取相关章节
             relevant_chapters = set()
@@ -327,23 +333,35 @@ class HierarchicalRetriever:
                     article_query = f"在{law_name}的{chapter}中，哪些条款涉及 {query_str}"
                     logger.info(f"条款级检索，查询: {article_query}")
                     article_embedding = self._embed_model.get_query_embedding(article_query)
+                    
                     article_vector_query = VectorStoreQuery(
                         query_embedding=article_embedding,
                         similarity_top_k=self._similarity_top_k,
                         mode="default",
-                        # 过滤条件：只检索特定法律的特定章节
-                        filter=lambda node: (
-                            node.metadata.get("law_name") == law_name and 
-                            node.metadata.get("chapter") == chapter
-                        ),
                     )
                     article_results = self._vector_store.query(article_vector_query)
                     
+                    # 手动过滤结果
+                    filtered_nodes = [
+                        node for node in article_results.nodes 
+                        if node.metadata.get("law_name") == law_name and 
+                        node.metadata.get("chapter") == chapter
+                    ]
+                    
+                    filtered_similarities = None
+                    if article_results.similarities is not None:
+                        filtered_similarities = [
+                            article_results.similarities[i] 
+                            for i, node in enumerate(article_results.nodes) 
+                            if node.metadata.get("law_name") == law_name and 
+                            node.metadata.get("chapter") == chapter
+                        ]
+                    
                     # 构建NodeWithScore对象
-                    for i, node in enumerate(article_results.nodes):
+                    for i, node in enumerate(filtered_nodes):
                         score = None
-                        if article_results.similarities is not None:
-                            score = article_results.similarities[i]
+                        if filtered_similarities is not None and i < len(filtered_similarities):
+                            score = filtered_similarities[i]
                         
                         if node.node_id not in retrieved_node_ids:
                             article_nodes_with_scores.append(NodeWithScore(node=node, score=score))
@@ -374,7 +392,7 @@ class HierarchicalRetriever:
             for i, node in enumerate(direct_results.nodes):
                 if node.node_id not in retrieved_node_ids:
                     score = None
-                    if direct_results.similarities is not None:
+                    if direct_results.similarities is not None and i < len(direct_results.similarities):
                         score = direct_results.similarities[i]
                     article_nodes_with_scores.append(NodeWithScore(node=node, score=score))
                     retrieved_node_ids.add(node.node_id)
@@ -393,15 +411,8 @@ class HierarchicalRetriever:
 class ResponseGenerator:
     """负责生成最终回答"""
     
-    def __init__(self, llm_model_name: str, api_key: Optional[str] = None, 
-                api_base: Optional[str] = None):
-        self.llm = OpenAI(
-            model=llm_model_name,
-            api_key=api_key,
-            api_base=api_base,
-            max_tokens=4096,
-            temperature=0.1,
-        )
+    def __init__(self, llm_client):
+        self.llm = llm_client
         self.law_prompt = PromptTemplate(
             """\
 你是一位经验丰富的法律顾问，擅长解释和应用中国法律。
@@ -478,33 +489,51 @@ class LawRAG:
         index_path: str,
         llm_model_name: str,
         embedding_model_name: str,
+        provider:str,
     ) -> None:
         # 初始化路径
         self.laws_path = laws_path
         self.index_path = index_path
         os.makedirs(self.laws_path, exist_ok=True)
         os.makedirs(self.index_path, exist_ok=True)
+
+        self.dimensions = 512
         
-        # 获取API密钥
-        llm_api_key = os.getenv("OPENAI_API_KEY")
-        llm_api_base = os.getenv("OPENAI_BASE_URL")
-        embed_api_key = os.getenv("OPENAI_API_KEY")
-        embed_api_base = os.getenv("OPENAI_BASE_URL")
+        if provider == "openai":
+            llm_api_key = os.getenv("OPENAI_API_KEY")
+            llm_api_base = os.getenv("OPENAI_BASE_URL")
+            embed_api_key = llm_api_key
+            embed_api_base = llm_api_base
+            llm_client = OpenAI(
+                model=llm_model_name,
+                api_key=llm_api_key,
+                api_base=llm_api_base,
+                max_tokens=4096,
+            )
+
+            embedding_model = OpenAIEmbedding(
+                model=embedding_model_name,
+                dimensions=self.dimensions,
+                api_key=embed_api_key,
+                api_base=embed_api_base,
+            )
+        elif provider == "ollama":
+            llm_client = Ollama(
+                model=llm_model_name,
+                base_url="http://localhost:11434", 
+                request_timeout=300,
+            )
+            embedding_model = OllamaEmbedding(
+                model_name=embedding_model_name,
+                base_url="http://localhost:11434",
+            )
         
         # 初始化各组件
         self.document_loader = DocumentLoader()
         self.document_processor = DocumentProcessor(chunk_size=1024)
-        self.embedding_service = EmbeddingService(
-            model_name=embedding_model_name,
-            api_key=embed_api_key,
-            api_base=embed_api_base,
-        )
+        self.embedding_service = EmbeddingService(embedding_model)
         self.vector_store = VectorStore(index_path=self.index_path)
-        self.response_generator = ResponseGenerator(
-            llm_model_name=llm_model_name,
-            api_key=llm_api_key,
-            api_base=llm_api_base,
-        )
+        self.response_generator = ResponseGenerator(llm_client)
     
     def process_file(self, file_path: str) -> bool:
         """处理单个文件"""
@@ -624,25 +653,54 @@ if __name__ == "__main__":
     import dotenv
     dotenv.load_dotenv()
 
+    # 测试OpenAI API接入
+    print("\n=== 测试OpenAI API接入 ===")
     # 使用环境变量或默认值
-    llm_model_name = os.getenv("LLM_MODEL", "gpt-4o")
-    embedding_model_name = os.getenv("EMBEDDING_MODEL", "text-embedding-3-large")
+    openai_llm_model = os.getenv("LLM_MODEL", "gpt-4o")
+    openai_embedding_model = os.getenv("EMBEDDING_MODEL", "text-embedding-3-large")
+    provider = "openai"
 
-    # 创建法律RAG系统
-    law_rag = LawRAG(
-        laws_path="lawsfiles",  # 法律文件目录
-        index_path="law_index",  # 向量索引目录
-        llm_model_name=llm_model_name,
-        embedding_model_name=embedding_model_name,
+    # 创建OpenAI法律RAG系统
+    openai_law_rag = LawRAG(
+        laws_path="laws_files",  # 法律文件目录
+        index_path=f"laws_index_{provider}",  # 向量索引目录
+        llm_model_name=openai_llm_model,
+        embedding_model_name=openai_embedding_model,
+        provider=provider,
     )
     
     # 初始化法律文档库
-    processed_files = law_rag.init_laws_library()
-    print(f"已处理 {len(processed_files)} 个法律文档文件")
+    processed_files = openai_law_rag.init_laws_library()
+    print(f"OpenAI模式: 已处理 {len(processed_files)} 个法律文档文件")
 
     # 测试查询
-    print("\n--- 测试查询: 土地征收补偿 ---")
-    response = law_rag.generate_response("土地征收时，农民应该获得哪些补偿？", top_k=5)
-    print(response)
+    print("\n--- OpenAI测试查询: 土地征收补偿 ---")
+    openai_response = openai_law_rag.generate_response("土地征收时，农民应该获得哪些补偿？", top_k=5)
+    print(openai_response)
+    
+    # 测试Ollama本地模型接入
+    print("\n=== 测试Ollama本地模型接入 ===")
+    # 使用本地Ollama模型
+    ollama_llm_model = "qwen2.5:3b"
+    ollama_embedding_model = "bge-m3:latest"
+    provider = "ollama"
+
+    # 创建Ollama法律RAG系统
+    ollama_law_rag = LawRAG(
+        laws_path="laws_files",  # 法律文件目录
+        index_path=f"laws_index_{provider}",  # 向量索引目录
+        llm_model_name=ollama_llm_model,
+        embedding_model_name=ollama_embedding_model,
+        provider="ollama",
+    )
+    
+    # 初始化法律文档库
+    processed_files = ollama_law_rag.init_laws_library()
+    print(f"Ollama模式: 已处理 {len(processed_files)} 个法律文档文件")
+
+    # 测试查询
+    print("\n--- Ollama测试查询: 土地征收补偿 ---")
+    ollama_response = ollama_law_rag.generate_response("土地征收时，农民应该获得哪些补偿？", top_k=5)
+    print(ollama_response)
 
 

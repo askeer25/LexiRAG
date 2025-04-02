@@ -110,10 +110,13 @@ main {
     background-color: var(--secondary-color);
 }
 
+/* 选项区域样式增强 */
 .options {
     margin-top: 0.8rem;
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
 }
 
 .options label {
@@ -127,6 +130,56 @@ main {
     border-radius: 4px;
     background-color: white;
     outline: none;
+}
+
+/* 模型提供者状态容器 */
+.provider-status-container {
+    display: flex;
+    align-items: center;
+    margin-left: 0.5rem;
+    padding: 0.3rem 0.6rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    background-color: var(--light-color);
+    animation: fadeIn 0.3s ease;
+}
+
+.provider-status-container .spinner.small {
+    width: 12px;
+    height: 12px;
+    border-width: 2px;
+    margin-right: 0.4rem;
+    margin-bottom: 0;
+}
+
+.provider-status-container span {
+    margin-left: 0.3rem;
+}
+
+.provider-status-container i {
+    font-size: 0.9rem;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* 作者信息样式 */
+.author-info {
+    margin: 0.8rem 0;
+    font-size: 0.9rem;
+}
+
+.author-info a {
+    color: var(--accent-color);
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.author-info a:hover {
+    color: var(--secondary-color);
+    text-decoration: underline;
 }
 
 /* 结果容器 */
