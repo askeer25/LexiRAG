@@ -1,17 +1,10 @@
 # LexiRAG - 法律法规检索智能体
 
-<div align="center">
-    <img src="https://img.shields.io/badge/Python-3.11+-blue.svg" alt="Python 3.11+">
-    <img src="https://img.shields.io/badge/FastAPI-0.100+-green.svg" alt="FastAPI">
-    <img src="https://img.shields.io/badge/LlamaIndex-0.9+-orange.svg" alt="LlamaIndex">
-    <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT">
-</div>
-
 ## 项目简介
 
 LexiRAG 是一个基于人工智能的法律条文智能检索与交互系统，旨在帮助用户快速、准确地查询和理解中国法律法规。系统采用了检索增强生成（RAG）技术，结合向量检索和大语言模型，实现了对法律文档的智能检索和问答功能。
 
-![alt text](images\image.png)
+![alt text](image.png)
 
 本项目支持两种模型来源：
 - **OpenAI API**：使用OpenAI的GPT模型和Embedding模型进行处理
@@ -150,20 +143,6 @@ laws_project/
 └── laws_index_ollama/     # Ollama模型向量索引
 ```
 
-## 依赖库
-
-- FastAPI：Web框架
-- LlamaIndex：RAG框架
-- Chroma：向量存储
-- PyMuPDF：PDF文档处理
-- Ollama Python客户端：与本地模型交互
-- OpenAI：与OpenAI API交互
-
 ## 参与贡献
 
 欢迎提交Issues和Pull Requests！
-
-
-## 作者
-
-段诗阳 - [GitHub](https://github.com/askeer25)
