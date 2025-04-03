@@ -71,7 +71,7 @@ async def startup_event():
     
     # 创建法律RAG系统
     law_rag = LawRAG(
-        laws_path="lawsfiles",  # 法律文件目录
+        laws_path="laws_files",  # 法律文件目录
         index_path=f"laws_index_{provider}",  # 向量索引目录
         llm_model_name=llm_model_name,
         embedding_model_name=embedding_model_name,
@@ -203,7 +203,7 @@ async def set_provider(data: ProviderModel):
         
         # 创建法律RAG系统
         law_rag = LawRAG(
-            laws_path="lawsfiles",  # 法律文件目录
+            laws_path="laws_files",  # 法律文件目录
             index_path=f"laws_index_{data.provider}",  # 向量索引目录
             llm_model_name=llm_model_name,
             embedding_model_name=embedding_model_name,
