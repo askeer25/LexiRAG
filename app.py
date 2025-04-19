@@ -6,7 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
-from rag import LawRAG, QueryService
+from rag import LawRAG
+from response_generator import QueryService
 
 # 加载环境变量
 dotenv.load_dotenv()
@@ -65,7 +66,7 @@ async def startup_event():
     global law_rag, query_service
     
     # 使用环境变量或默认值
-    llm_model_name = os.getenv("LLM_MODEL", "gpt-3.5-turbo")
+    llm_model_name = os.getenv("LLM_MODEL", "gpt-4o-2024-11-20")
     embedding_model_name = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
     provider = os.getenv("MODEL_PROVIDER", "openai")  # 默认使用OpenAI
     
@@ -193,12 +194,12 @@ async def set_provider(data: ProviderModel):
     
     try:
         # 使用环境变量或默认值
-        llm_model_name = os.getenv("LLM_MODEL", "gpt-3.5-turbo")
+        llm_model_name = os.getenv("LLM_MODEL", "gpt-4o-2024-11-20")
         embedding_model_name = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
         
         # 为 Ollama 使用不同的默认模型
         if data.provider == "ollama":
-            llm_model_name = os.getenv("OLLAMA_LLM_MODEL", "qwen2.5:3b")
+            llm_model_name = os.getenv("OLLAMA_LLM_MODEL", "qwen2.5-3b")
             embedding_model_name = os.getenv("OLLAMA_EMBEDDING_MODEL", "bge-m3")
         
         # 创建法律RAG系统
@@ -234,4 +235,4 @@ app.mount("/", StaticFiles(directory="static", html=True), name="static")
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=9000)
+    uvicorn.run(app, host="0.0.0.0", port=8082)
